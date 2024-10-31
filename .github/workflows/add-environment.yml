@@ -1,4 +1,4 @@
-name: Add Environment Variables
+name: Configure Environment Variables, Secrets, and Reviewers
 
 on:
   workflow_dispatch:
@@ -6,34 +6,71 @@ on:
       repo_name:
         description: 'Repository name (e.g., owner/repo)'
         required: true
+      env_name:
+        description: 'Name of the environment to configure'
+        required: true
       env_vars:
         description: 'JSON object containing environment variables (e.g., {"VAR1":"value1","VAR2":"value2"})'
         required: true
         default: '{"API_KEY":"default_value1","DB_PASSWORD":"default_value2"}'
+      env_secrets:
+        description: 'JSON object containing environment secrets (e.g., {"SECRET1":"value1","SECRET2":"value2"})'
+        required: true
+        default: '{"API_SECRET":"supersecret"}'
+      reviewers:
+        description: 'List of users or teams to be added as reviewers (e.g., ["user1","user2"])'
+        required: true
+        default: '[]'
 
 jobs:
-  add-env-vars:
+  configure-env:
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout the repository
         uses: actions/checkout@v2
 
-      - name: Set environment variables
-        id: set-env
+      - name: Set Environment Variables
+        id: set-vars
         run: |
-          echo '{"API_KEY":"12345","DB_PASSWORD":"mysecret"}' > env_vars.json
-          # Convert the JSON object into an array of key-value pairs
+          echo "${{ github.event.inputs.env_vars }}" > env_vars.json
+          echo "${{ github.event.inputs.env_secrets }}" > env_secrets.json
+
+          # Process environment variables
+          echo "Processing environment variables..."
           jq -c 'to_entries | .[]' env_vars.json > processed_vars.json
-          
-          # Loop through each environment variable and set it in the repository
+
           while IFS= read -r line; do
             var_name=$(echo "$line" | jq -r '.key')
             var_value=$(echo "$line" | jq -r '.value')
-            echo "Setting variable $var_name in repository ${{ github.event.inputs.repo_name }}"
+            echo "Setting variable $var_name in environment ${{ github.event.inputs.env_name }}"
             curl -X PUT \
               -H "Authorization: token ${{ secrets.GH_TOKEN }}" \
               -H "Accept: application/vnd.github.v3+json" \
               -d "{\"name\":\"$var_name\",\"value\":\"$var_value\"}" \
-              "https://api.github.com/repos/${{ github.event.inputs.repo_name }}/actions/secrets/$var_name"
+              "https://api.github.com/repos/${{ github.event.inputs.repo_name }}/environments/${{ github.event.inputs.env_name }}/variables/$var_name"
           done < processed_vars.json
+
+          # Process environment secrets
+          echo "Processing environment secrets..."
+          jq -c 'to_entries | .[]' env_secrets.json > processed_secrets.json
+
+          while IFS= read -r line; do
+            secret_name=$(echo "$line" | jq -r '.key')
+            secret_value=$(echo "$line" | jq -r '.value')
+            echo "Setting secret $secret_name in environment ${{ github.event.inputs.env_name }}"
+            
+            # Encrypt the secret value
+            encrypted_value=$(echo -n "$secret_value" | gh secret encrypt --visibility all --input -)
+
+            curl -X PUT \
+              -H "Authorization: token ${{ secrets.GH_TOKEN }}" \
+              -H "Accept: application/vnd.github.v3+json" \
+              -d "{\"encrypted_value\":\"$encrypted_value\",\"key_id\":\"${{ secrets.GH_KEY_ID }}\"}" \
+              "https://api.github.com/repos/${{ github.event.inputs.repo_name }}/environments/${{ github.event.inputs.env_name }}/secrets/$secret_name"
+          done < processed_secrets.json
+
+      - name: Reminder to Add Required Reviewers
+        run: |
+          echo "Reminder: Please manually add required reviewers to the environment '${{ github.event.inputs.env_name }}' in your repository settings."
+          echo "You can specify the following users/teams: ${{ github.event.inputs.reviewers }}."
