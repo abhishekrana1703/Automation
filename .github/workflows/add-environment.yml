@@ -3,6 +3,9 @@ name: Add Environment
 on:
   workflow_dispatch:
     inputs:
+      repository_name:
+        description: 'Name of the repository (owner/repo)'
+        required: true
       environment_name:
         description: 'Name of the environment to add'
         required: true
@@ -19,14 +22,17 @@ jobs:
         id: setup
         run: |
           echo "## Setting up environment variables"
+          repository_name="${{ github.event.inputs.repository_name }}"
           environment_name="${{ github.event.inputs.environment_name }}"
           reviewers="${{ github.event.inputs.reviewers }}"
+          echo "REPOSITORY_NAME=$repository_name" >> $GITHUB_ENV
           echo "ENVIRONMENT_NAME=$environment_name" >> $GITHUB_ENV
           echo "REVIEWERS=$reviewers" >> $GITHUB_ENV
 
       - name: Add environment with reviewers
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          REPOSITORY_NAME: ${{ env.REPOSITORY_NAME }}
           ENVIRONMENT_NAME: ${{ env.ENVIRONMENT_NAME }}
           REVIEWERS: ${{ env.REVIEWERS }}
         run: |
@@ -36,11 +42,11 @@ jobs:
           # Add environment
           curl -X PUT -H "Authorization: Bearer $GH_TOKEN" \
             -H "Accept: application/vnd.github.v3+json" \
-            https://api.github.com/repos/${{ github.repository }}/environments/$ENVIRONMENT_NAME \
+            https://api.github.com/repos/$REPOSITORY_NAME/environments/$ENVIRONMENT_NAME \
             -d "{}"
 
           # Set deployment protection rules with required reviewers
           curl -X PUT -H "Authorization: Bearer $GH_TOKEN" \
             -H "Accept: application/vnd.github.v3+json" \
-            https://api.github.com/repos/${{ github.repository }}/environments/$ENVIRONMENT_NAME/deployment_protection_rules \
+            https://api.github.com/repos/$REPOSITORY_NAME/environments/$ENVIRONMENT_NAME/deployment_protection_rules \
             -d "{\"required_reviewers\": $reviewers_array}"
