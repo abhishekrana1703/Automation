@@ -9,7 +9,7 @@ on:
       env_vars:
         description: 'JSON object containing environment variables (e.g., {"VAR1":"value1","VAR2":"value2"})'
         required: true
-        default: '{"VAR1":"default_value1","VAR2":"default_value2"}'
+        default: '{"API_KEY":"default_value1","DB_PASSWORD":"default_value2"}'
 
 jobs:
   add-env-vars:
@@ -22,7 +22,7 @@ jobs:
       - name: Set environment variables
         id: set-env
         run: |
-          echo "${{ github.event.inputs.env_vars }}" > env_vars.json
+          echo '{"API_KEY":"12345","DB_PASSWORD":"mysecret"}' > env_vars.json
           jq -c 'to_entries | .[] | { name: .key, value: .value }' env_vars.json > processed_vars.json
           
           # Loop through each environment variable and set it in the repository
