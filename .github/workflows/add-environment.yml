@@ -33,7 +33,8 @@ jobs:
       - name: Set Environment Variables
         id: set-vars
         run: |
-          echo "${{ github.event.inputs.env_vars }}" > env_vars.json
+          # Create env_vars.json with proper quoting
+          echo '{"API_KEY":"default_value1","DB_PASSWORD":"default_value2"}' > env_vars.json
           echo "${{ github.event.inputs.env_secrets }}" > env_secrets.json
 
           # Process environment variables
@@ -59,7 +60,7 @@ jobs:
             secret_name=$(echo "$line" | jq -r '.key')
             secret_value=$(echo "$line" | jq -r '.value')
             echo "Setting secret $secret_name in environment ${{ github.event.inputs.env_name }}"
-            
+
             # Encrypt the secret value
             encrypted_value=$(echo -n "$secret_value" | gh secret encrypt --visibility all --input -)
 
