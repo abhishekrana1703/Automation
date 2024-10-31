@@ -23,11 +23,12 @@ jobs:
         id: set-env
         run: |
           echo '{"API_KEY":"12345","DB_PASSWORD":"mysecret"}' > env_vars.json
-          jq -c 'to_entries | .[] | { name: .key, value: .value }' env_vars.json > processed_vars.json
+          # Convert the JSON object into an array of key-value pairs
+          jq -c 'to_entries | .[]' env_vars.json > processed_vars.json
           
           # Loop through each environment variable and set it in the repository
           while IFS= read -r line; do
-            var_name=$(echo "$line" | jq -r '.name')
+            var_name=$(echo "$line" | jq -r '.key')
             var_value=$(echo "$line" | jq -r '.value')
             echo "Setting variable $var_name in repository ${{ github.event.inputs.repo_name }}"
             curl -X PUT \
@@ -35,4 +36,4 @@ jobs:
               -H "Accept: application/vnd.github.v3+json" \
               -d "{\"name\":\"$var_name\",\"value\":\"$var_value\"}" \
               "https://api.github.com/repos/${{ github.event.inputs.repo_name }}/actions/secrets/$var_name"
-          done < <(jq -c '.[]' processed_vars.json)
+          done < processed_vars.json
